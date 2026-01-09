@@ -11,8 +11,8 @@ st.set_page_config(
 
 st.title("Metsänomistajan arvojen pohdinta")
 st.write(
-    "Valitse kustakin ryhmästä yksi **tärkein** ja yksi **vähiten tärkeä** arvolause. "
-    "Tehtävän lopuksi saat yhteenvedon arvoistasi."
+    "Näet aina kaksi arvolausetta. Valitse niistä se, "
+    "joka on sinulle metsänomistajana tärkeämpi."
 )
 
 # --------------------------------------------------
@@ -41,65 +41,58 @@ STATEMENTS = [
     ("Metsän käyttö omiin tarpeisiin on tärkeää.", "Tunne"),
 ]
 
-GROUP_SIZE = 4
-NUMBER_OF_GROUPS = 5
+# --------------------------------------------------
+# ASETUKSET
+# --------------------------------------------------
+
+NUMBER_OF_PAIRS = 12
 
 # --------------------------------------------------
 # SESSION STATE
 # --------------------------------------------------
 
-if "index" not in st.session_state:
-    st.session_state.index = 0
+if "pair_index" not in st.session_state:
+    st.session_state.pair_index = 0
     st.session_state.scores = defaultdict(int)
-    st.session_state.groups = [
-        random.sample(STATEMENTS, GROUP_SIZE)
-        for _ in range(NUMBER_OF_GROUPS)
-    ]
 
-index = st.session_state.index
+    all_pairs = []
+    for i in range(len(STATEMENTS)):
+        for j in range(i + 1, len(STATEMENTS)):
+            all_pairs.append((STATEMENTS[i], STATEMENTS[j]))
+
+    random.shuffle(all_pairs)
+    st.session_state.pairs = all_pairs[:NUMBER_OF_PAIRS]
+
+pair_index = st.session_state.pair_index
+pairs = st.session_state.pairs
 scores = st.session_state.scores
-groups = st.session_state.groups
 
 # --------------------------------------------------
 # PARIVERTAILU
 # --------------------------------------------------
 
-if index < NUMBER_OF_GROUPS:
-    group = groups[index]
+if pair_index < NUMBER_OF_PAIRS:
+    left, right = pairs[pair_index]
 
-    st.subheader(f"Valinta {index + 1} / {NUMBER_OF_GROUPS}")
+    st.subheader(f"Valinta {pair_index + 1} / {NUMBER_OF_PAIRS}")
 
-    labels = [s[0] for s in group]
-
-    col_left, col_mid, col_right = st.columns([1, 6, 1])
-
-    with col_left:
-        st.markdown("**Tärkein**")
-        best = st.radio("", labels, key=f"best_{index}")
-
-    with col_mid:
-        for l in labels:
-            st.write(l)
-
-    with col_right:
-        st.markdown("**Vähiten tärkeä**")
-        worst = st.radio("", labels, key=f"worst_{index}")
+    choice = st.radio(
+        "Kumpi on sinulle tärkeämpi?",
+        [left[0], right[0]],
+        key=f"choice_{pair_index}"
+    )
 
     if st.button("Seuraava"):
-        if best == worst:
-            st.warning("Et voi valita samaa väittämää sekä tärkeimmäksi että vähiten tärkeäksi.")
+        if choice == left[0]:
+            scores[left[1]] += 1
         else:
-            for statement, category in group:
-                if statement == best:
-                    scores[category] += 1
-                if statement == worst:
-                    scores[category] -= 1
+            scores[right[1]] += 1
 
-            st.session_state.index += 1
-            st.rerun()
+        st.session_state.pair_index += 1
+        st.rerun()
 
 # --------------------------------------------------
-# TULOKSET + RADAR CHART + REFLEKTIO
+# TULOKSET + RADAR CHART
 # --------------------------------------------------
 
 else:
@@ -119,44 +112,29 @@ else:
     ax.plot(angles, values)
     ax.fill(angles, values, alpha=0.25)
 
-    ax.set_thetagrids(
-        np.degrees(angles[:-1]),
-        categories
-    )
-
+    ax.set_thetagrids(np.degrees(angles[:-1]), categories)
     ax.set_title("Metsänomistajan arvoprofiili", pad=20)
-    ax.set_rlabel_position(0)
     ax.grid(True)
 
     st.pyplot(fig)
 
-    # --- Sanallinen tulkinta ---
+    # --- Sanallinen palaute ---
     st.subheader("Tulkinta")
 
     top_value = max(scores, key=scores.get)
 
-    INTERPRETATION = {
-        "Talous": (
-            "Vastauksissasi korostuu metsän taloudellinen merkitys ja hallittavuus. "
-            "Arvostat selkeitä ja ennakoitavia ratkaisuja."
-        ),
-        "Luonto": (
-            "Luontoarvot ja kestävyys ovat sinulle keskeisiä. "
-            "Metsä on sinulle muutakin kuin tuotannon väline."
-        ),
-        "Jatkuvuus": (
-            "Ajattelet metsää pitkällä aikavälillä ja tulevia sukupolvia silmällä pitäen."
-        ),
-        "Tunne": (
-            "Metsä on sinulle henkilökohtaisesti merkityksellinen ja hyvinvointia tuova."
-        ),
+    FEEDBACK = {
+        "Talous": "Taloudelliset näkökulmat ja metsän tuotto ovat sinulle keskeisiä.",
+        "Luonto": "Luontoarvot ja kestävyys ohjaavat vahvasti metsäsuhdettasi.",
+        "Jatkuvuus": "Ajattelet metsää pitkällä aikavälillä ja tulevia sukupolvia varten.",
+        "Tunne": "Metsällä on sinulle henkilökohtainen ja hyvinvointia tuova merkitys.",
     }
 
-    st.write(INTERPRETATION[top_value])
+    st.write(FEEDBACK[top_value])
 
     # --- Reflektiokysymys ---
     st.info(
-        "Pohdi hetki:\n\n"
-        "• Miten tämä arvoprofiili näkyy nykyisissä metsänhoitovalinnoissasi?\n"
+        "Pohdi:\n\n"
+        "• Missä metsänhoitoa koskevissa päätöksissä nämä arvot näkyvät selkeimmin?\n"
         "• Onko jokin arvo, jota haluaisit tulevaisuudessa painottaa enemmän?"
     )
