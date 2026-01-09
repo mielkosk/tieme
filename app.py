@@ -70,7 +70,7 @@ if pair_index < NUMBER_OF_PAIRS:
         chosen = left if choice == left[0] else right
         scores[chosen[1]] += 1
         st.session_state.pair_index += 1
-        st.experimental_rerun()  # päivitys seuraavaan pariin
+        st.rerun()  # päivitys seuraavaan pariin
 else:
     # --- Tulokset ja palaute ---
     st.subheader("Tuloksesi")
