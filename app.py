@@ -1,105 +1,162 @@
-# tallennetaan tiedostoksi esim. arvopolku.py
-
 import streamlit as st
 import random
 from collections import defaultdict
+import matplotlib.pyplot as plt
+import numpy as np
 
-st.set_page_config(page_title="Metsänomistajan arvopolku")
-
-st.title("Arvopohdinta metsänomistajille")
-st.write(
-    "Valitse jokaisesta parista se väittämä, joka kuvaa sinulle tärkeintä arvoa metsänomistajana."
+st.set_page_config(
+    page_title="Metsänomistajan arvot – parivertailu",
+    layout="wide"
 )
 
-# --- Arvoväittämät ja kategoriat ---
+st.title("Metsänomistajan arvojen pohdinta")
+st.write(
+    "Valitse kustakin ryhmästä yksi **tärkein** ja yksi **vähiten tärkeä** arvolause. "
+    "Tehtävän lopuksi saat yhteenvedon arvoistasi."
+)
+
+# --------------------------------------------------
+# ARVOLAUSET
+# --------------------------------------------------
+
 STATEMENTS = [
-    # Talous & käyttö
     ("Metsän kuuluu tuottaa taloudellista hyötyä omistajalleen.", "Talous"),
     ("Metsänhoidon pitää olla kustannuksiltaan ennakoitavaa ja hallittua.", "Talous"),
     ("Metsä on minulle sijoitus muiden joukossa.", "Talous"),
     ("Haluan, että metsän hoito vaatii mahdollisimman vähän omaa aikaa.", "Talous"),
 
-    # Luonto & kestävyys
     ("Luonnon monimuotoisuuden säilyminen on metsän hoidossa keskeistä.", "Luonto"),
     ("Haluan, että metsänhoitoni tukee ilmastonmuutoksen hillintää.", "Luonto"),
     ("Metsän ei tarvitse tuottaa maksimaalista taloudellista hyötyä ollakseen arvokas.", "Luonto"),
     ("Luonnon oma rytmi saa näkyä metsässäni.", "Luonto"),
 
-    # Jatkuvuus & arvot
     ("On tärkeää, että metsä säilyy hyvässä kunnossa tuleville sukupolville.", "Jatkuvuus"),
     ("Metsä on osa perheeni tai sukuni historiaa.", "Jatkuvuus"),
     ("Teen metsää koskevat päätökset pitkällä aikavälillä.", "Jatkuvuus"),
     ("Haluan jättää metsän paremmassa kunnossa kuin sen sain.", "Jatkuvuus"),
 
-    # Omistajuus & tunne
     ("Metsä tuo minulle rauhaa ja hyvinvointia.", "Tunne"),
     ("Haluan päättää itse metsää koskevista ratkaisuista.", "Tunne"),
     ("Metsän hoito on minulle mielekäs ja merkityksellinen asia.", "Tunne"),
-    ("Metsän käyttö omiin tarpeisiin (retkeily, marjastus, mökki) on tärkeää.", "Tunne"),
+    ("Metsän käyttö omiin tarpeisiin on tärkeää.", "Tunne"),
 ]
 
-NUMBER_OF_PAIRS = 10
+GROUP_SIZE = 4
+NUMBER_OF_GROUPS = 5
 
-# --- Sessiomuisti käyttäjälle ---
-if "pair_index" not in st.session_state:
-    st.session_state.pair_index = 0
+# --------------------------------------------------
+# SESSION STATE
+# --------------------------------------------------
+
+if "index" not in st.session_state:
+    st.session_state.index = 0
     st.session_state.scores = defaultdict(int)
-    # arvotaan parit
-    st.session_state.pairs = random.sample(
-        [(a, b) for idx, a in enumerate(STATEMENTS)
-         for b in STATEMENTS[idx + 1:]],
-        NUMBER_OF_PAIRS
-    )
+    st.session_state.groups = [
+        random.sample(STATEMENTS, GROUP_SIZE)
+        for _ in range(NUMBER_OF_GROUPS)
+    ]
 
-pair_index = st.session_state.pair_index
+index = st.session_state.index
 scores = st.session_state.scores
-pairs = st.session_state.pairs
+groups = st.session_state.groups
 
-# --- Näytetään nykyinen pari ---
-if pair_index < NUMBER_OF_PAIRS:
-    left, right = pairs[pair_index]
+# --------------------------------------------------
+# PARIVERTAILU
+# --------------------------------------------------
 
-    st.write(f"**Valinta {pair_index + 1}/{NUMBER_OF_PAIRS}**")
-    choice = st.radio(
-        "Kumpi väittämä kuvaa sinua paremmin?",
-        (left[0], right[0])
+if index < NUMBER_OF_GROUPS:
+    group = groups[index]
+
+    st.subheader(f"Valinta {index + 1} / {NUMBER_OF_GROUPS}")
+
+    labels = [s[0] for s in group]
+
+    col_left, col_mid, col_right = st.columns([1, 6, 1])
+
+    with col_left:
+        st.markdown("**Tärkein**")
+        best = st.radio("", labels, key=f"best_{index}")
+
+    with col_mid:
+        for l in labels:
+            st.write(l)
+
+    with col_right:
+        st.markdown("**Vähiten tärkeä**")
+        worst = st.radio("", labels, key=f"worst_{index}")
+
+    if st.button("Seuraava"):
+        if best == worst:
+            st.warning("Et voi valita samaa väittämää sekä tärkeimmäksi että vähiten tärkeäksi.")
+        else:
+            for statement, category in group:
+                if statement == best:
+                    scores[category] += 1
+                if statement == worst:
+                    scores[category] -= 1
+
+            st.session_state.index += 1
+            st.rerun()
+
+# --------------------------------------------------
+# TULOKSET + RADAR CHART + REFLEKTIO
+# --------------------------------------------------
+
+else:
+    st.subheader("Arvoprofiilisi")
+
+    categories = ["Talous", "Luonto", "Jatkuvuus", "Tunne"]
+    values = [scores[c] for c in categories]
+
+    # --- Radar chart ---
+    st.subheader("Arvokartta")
+
+    angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+    values += values[:1]
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.plot(angles, values)
+    ax.fill(angles, values, alpha=0.25)
+
+    ax.set_thetagrids(
+        np.degrees(angles[:-1]),
+        categories
     )
 
-    if st.button("Valitse ja siirry seuraavaan"):
-        # tallennetaan valinta
-        chosen = left if choice == left[0] else right
-        scores[chosen[1]] += 1
-        st.session_state.pair_index += 1
-        st.rerun()  # päivitys seuraavaan pariin
-else:
-    # --- Tulokset ja palaute ---
-    st.subheader("Tuloksesi")
+    ax.set_title("Metsänomistajan arvoprofiili", pad=20)
+    ax.set_rlabel_position(0)
+    ax.grid(True)
 
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    for category, score in sorted_scores:
-        st.write(f"{category}: {score} valintaa")
+    st.pyplot(fig)
 
-    top_value = sorted_scores[0][0]
+    # --- Sanallinen tulkinta ---
+    st.subheader("Tulkinta")
 
-    FEEDBACK = {
+    top_value = max(scores, key=scores.get)
+
+    INTERPRETATION = {
         "Talous": (
-            "Vastauksissasi korostui metsän taloudellinen merkitys ja hallittavuus. "
-            "Arvostat ennakoitavuutta ja selkeitä ratkaisuja metsänhoidossa."
+            "Vastauksissasi korostuu metsän taloudellinen merkitys ja hallittavuus. "
+            "Arvostat selkeitä ja ennakoitavia ratkaisuja."
         ),
         "Luonto": (
-            "Arvostat metsän ekologisia arvoja ja luonnon monimuotoisuutta. "
-            "Metsä on sinulle muutakin kuin tuotantoresurssi."
+            "Luontoarvot ja kestävyys ovat sinulle keskeisiä. "
+            "Metsä on sinulle muutakin kuin tuotannon väline."
         ),
         "Jatkuvuus": (
-            "Pitkäjänteisyys ja tulevat sukupolvet ovat sinulle tärkeitä. "
-            "Teet metsää koskevia päätöksiä laajemmassa aikahorisontissa."
+            "Ajattelet metsää pitkällä aikavälillä ja tulevia sukupolvia silmällä pitäen."
         ),
         "Tunne": (
-            "Metsä on sinulle henkilökohtaisesti merkityksellinen. "
-            "Hyvinvointi, omistajuus ja tunneperäinen suhde korostuvat."
+            "Metsä on sinulle henkilökohtaisesti merkityksellinen ja hyvinvointia tuova."
         ),
     }
 
-    st.subheader("Arvoprofiilisi")
-    st.write(FEEDBACK[top_value])
-    st.write("Pidä tämä mielessä, kun etenet metsänhoitoa koskevissa valinnoissa.")
+    st.write(INTERPRETATION[top_value])
+
+    # --- Reflektiokysymys ---
+    st.info(
+        "Pohdi hetki:\n\n"
+        "• Miten tämä arvoprofiili näkyy nykyisissä metsänhoitovalinnoissasi?\n"
+        "• Onko jokin arvo, jota haluaisit tulevaisuudessa painottaa enemmän?"
+    )
